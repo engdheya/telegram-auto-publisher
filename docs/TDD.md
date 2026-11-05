@@ -42,9 +42,10 @@
                    │
    ┌───────────────▼───────────────────────────────────────────────────────────┐
    │   SQLite (WAL) · runtime/tap.db · SQLAlchemy models · Alembic migrations   │
-   │   12 tables: users, telegram_accounts, source_channels, target_channels,   │
-   │   publishing_routes, route_filters, message_events, message_media,          │
-   │   publish_jobs, publish_attempts, audit_logs, system_settings (+alembic)   │
+   │   12 app tables: users, telegram_accounts, source_channels,               │
+   │   target_channels, publishing_routes, route_filters, message_events,       │
+   │   message_media, publish_jobs, publish_attempts, audit_logs,              │
+   │   system_settings  (+ alembic_version ⇒ 13 rows in sqlite_master)         │
    └───────────────────────────────────────────────────────────────────────────┘
 ```
 

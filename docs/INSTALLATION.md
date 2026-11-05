@@ -54,7 +54,8 @@ nano .env
 | `JWT_SECRET_KEY` | سرّ توقيع JWT (≥32 حرفًا) | ✅ |
 | `SESSION_ENCRYPTION_KEY` | مفتاح Fernet (44 حرفًا base64) | ✅ |
 | `INITIAL_ADMIN_USERNAME/PASSWORD/EMAIL` | مستخدم المشرف الأول | ✅ |
-| `DATABASE_URL` | `sqlite:////opt/telegram-auto-publisher/runtime/tap.db` | ✅ |
+| `DATABASE_URL` | `sqlite:////opt/tap/runtime/tap.db` (المسار القياسي `/opt/tap`، أو أي مسار تملكه) | ✅ |
+| `BACKUP_DIR` / `MEDIA_CACHE_DIR` / `LOG_DIR` | تحت `/opt/tap/runtime/…` | ✅ |
 | `TELEGRAM_DEFAULT_API_ID` / `TELEGRAM_DEFAULT_API_HASH` | اختياري (يمكن إدخالهما من الواجهة) | ❌ |
 | `CORS_ORIGINS` | `["https://your-domain.com"]` في الإنتاج | للإنتاج |
 

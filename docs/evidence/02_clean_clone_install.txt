@@ -1,0 +1,40 @@
+# Clean-install proof — 2026-11-05T22:04:37Z
+# host: Linux 6.1.189+ x86_64 · python: Python 3.13.16 · target: /tmp/tap-clean-install
+
+=== 1) copy the tree into an empty directory (no .env / runtime / venv / node_modules) ===
+. .. .dockerignore .env.example .github .gitignore LICENSE README.md backend deploy docs frontend scripts 
+
+=== 2) .env from .env.example with freshly generated secrets ===
+rotated: SESSION_ENCRYPTION_KEY, JWT_SECRET_KEY, INITIAL_ADMIN_PASSWORD
+DATABASE_URL=sqlite:///./runtime/tap.db
+BACKUP_DIR=./runtime/backups
+MEDIA_CACHE_DIR=./runtime/media_cache
+LOG_DIR=./runtime/logs
+
+=== 3) brand-new virtualenv + pinned requirements ===
+pip install -r backend/requirements.txt: OK (47 packages installed)
+No broken requirements found.
+
+=== 4) alembic upgrade head ===
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_initial_schema, initial_schema
+alembic upgrade head: OK
+
+=== 5) tables created in sqlite_master ===
+db file: /tmp/tap-clean-install/runtime/tap.db
+13 tables -> alembic_version, audit_logs, message_events, message_media, publish_attempts, publish_jobs, publishing_routes, route_filters, source_channels, system_settings, target_channels, telegram_accounts, users
+business tables: 12 + alembic_version
+
+=== 6) seed the bootstrap admin (idempotent) ===
+2026-11-05T22:04:50Z | INFO     | tap | Bootstrapped initial admin account: username=admin
+init_database(): bootstrap admin seeded
+admin user: admin | role: admin | active: True
+
+=== 7) backend test-suite on this clean tree ===
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passed, 1 warning in 3.47s
+
+=== 8) result ===
+ALL STAGES PASSED — a fresh machine with python3 + git can reproduce this.

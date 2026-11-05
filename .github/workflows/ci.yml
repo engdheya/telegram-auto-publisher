@@ -2,48 +2,163 @@ name: Telegram Auto Publisher CI
 
 on:
   push:
-    branches: [main, develop, "feature/**"]
+    branches: [main, develop, "feature/**", "docs/**"]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONWARNINGS: default
 
 jobs:
+  # ---------------------------------------------------------------------------
   backend-tests:
-    name: Backend & Database Suite (Pytest)
+    name: Backend suite (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.12
+
+      - name: Set up Python ${{ matrix.python }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Install backend dependencies
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install pinned dependencies
         working-directory: backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Verify no secrets committed
-        run: |
-          test ! -f .env
-          ! find . -name "*.session" -not -path "./.git/*" | grep -q .
-      - name: Run Alembic migrations & Pytest suite
-        working-directory: backend
-        run: |
-          pytest -v
 
+      - name: Verify no secrets / session files / databases are tracked
+        run: |
+          set -e
+          test ! -f .env
+          if git ls-files | grep -E '(^|/)(\.env$|.*\.session|.*\.db$|.*\.db-wal$|.*\.sha256$)'; then
+            echo "::error::sensitive file tracked in git"; exit 1
+          fi
+
+      - name: Alembic migration cycle on a clean database
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:////tmp/ci_tap.db
+          BACKUP_DIR: /tmp/ci_backups
+          MEDIA_CACHE_DIR: /tmp/ci_media
+          LOG_DIR: /tmp/ci_logs
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          python -c "from app.database.init_db import init_database; init_database()"
+
+      - name: Pytest (unit / integration / DB / API / all 12 scenarios)
+        working-directory: backend
+        run: pytest -v
+
+      - name: pip dependency consistency check
+        working-directory: backend
+        run: python -m pip check
+
+  # ---------------------------------------------------------------------------
   frontend-tests:
-    name: Frontend Build & Functional Suite (Vitest + TypeScript)
+    name: Frontend typecheck, tests & production build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install frontend dependencies
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies (lockfile enforced)
         working-directory: frontend
         run: npm ci
-      - name: Typecheck, Test & Build
+
+      - name: TypeScript typecheck
         working-directory: frontend
+        run: npx tsc -b
+
+      - name: Vitest functional suite
+        working-directory: frontend
+        run: npx vitest run
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload build artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-dist
+          path: frontend/dist
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  config-validation:
+    name: Deployment config validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Nginx site (syntax + referenced paths)
         run: |
-          npm run test -- --run
-          npm run build
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx-light
+          ./scripts/ci/validate_nginx.sh
+
+      - name: Validate systemd units
+        run: ./scripts/ci/validate_systemd.sh
+
+      - name: Validate docker-compose file
+        run: |
+          python -m pip install --quiet pyyaml
+          python - <<'PY'
+          import yaml, pathlib, sys
+          data = yaml.safe_load(pathlib.Path("deploy/docker-compose.yml").read_text())
+          services = data.get("services", {})
+          assert {"backend", "worker", "frontend"} <= set(services), services.keys()
+          assert services["worker"].get("deploy", {}).get("replicas", 1) == 1, "worker must stay at 1 replica (SQLite single-writer rule)"
+          assert "tap-data" in data.get("volumes", {}), "persistent volume required"
+          print("docker-compose.yml OK:", sorted(services))
+          PY
+
+  # ---------------------------------------------------------------------------
+  security-scan:
+    name: Secret & dependency security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scan repository for secrets and credentials
+        run: python scripts/ci/scan_secrets.py
+
+      - name: Install backend deps and audit
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
+          pip-audit --strict --desc on || echo "::warning::pip-audit reported findings — review manually"
+
+      - name: Frontend dependency audit (high severity)
+        working-directory: frontend
+        run: npm audit --audit-level=high || echo "::warning::npm audit reported findings — review manually"

@@ -1,0 +1,17 @@
+# live Telegram E2E — prerequisites inventory (dry run) — 2026-11-05T22:06:33Z
+# Credentials are read from .env (same file the API/worker use); no secrets are printed.
+== 1. dashboard API login ==
+PASS | Dashboard login (JWT issued by real API)
+FAIL | Telegram account is linked & CONNECTED (from the dashboard flow) | auth_state=UNCONFIGURED @None session=False
+PASS | API never exposes the API hash or the session
+
+== 2. live-run prerequisites ==
+FAIL | TELEGRAM_API_ID present | missing
+FAIL | TELEGRAM_API_HASH present | missing
+FAIL | Helper identity for injecting source content (bot token preferred) | missing
+FAIL | TAP_SOURCE_CHATS configured | missing
+FAIL | TAP_TARGET_CHATS configured | missing
+
+--dry-run: prerequisites inventoried, no Telegram content was sent.
+Live run is BLOCKED until the ❌ items above are supplied by the operator.
+[exit=1]

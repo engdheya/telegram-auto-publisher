@@ -1,6 +1,6 @@
 # Telegram Auto Publisher — TEST REPORT
 
-> نتائج **حقيقية** من تنفيذ فعلي (لا نتائج مُفترضة). التاريخ: 2026‑11‑05/06 · البيئة: Linux x86_64 · Python 3.13.16 · Node 20.20.2 · Chromium 131 (headless).
+> نتائج **حقيقية** من تنفيذ فعلي (لا نتائج مُفترضة). جولة الإغلاق النهائية: **2026‑11‑06** · البيئة: Linux x86_64 · Python 3.13.16 · Node 20.20.2 · Chromium (headless) · nginx 1.26.3 · ffmpeg 7.1.5.
 > إعادة التنفيذ: `pytest -q` · `npx vitest run` · `npm run build` · `node scripts/e2e_live_walkthrough.mjs <user> <pass>`
 
 ---
@@ -9,20 +9,25 @@
 
 | المجموعة | الأداة | الملفات | الاختبارات | النتيجة |
 |---|---|---|---|---|
-| Backend (unit/integration/DB/API/Telegram/publishing) | pytest 8 | 6 | **15** | ✅ `15 passed in 3.57s` |
-| Frontend (functional/UI wiring) | Vitest + Testing Library | 6 | **32** | ✅ `32 passed` |
+| Backend (unit/integration/DB/API/Telegram/publishing) | pytest 9 | 6 | **15** | ✅ `15 passed in 3.29s` (و`3.13s` في نسخة نظيفة) |
+| Frontend (functional/UI wiring) | Vitest + Testing Library | 6 | **32** | ✅ `32 passed (9.66s)` |
 | Build إنتاجي للواجهة | `tsc -b && vite build` | — | — | ✅ 0 أخطاء TypeScript |
 | E2E حقيقي في متصفح (stack حيّ) | Playwright (Chromium) | 1 | **20 فحصًا** | ✅ `20/20 checks passed` |
+| تثبيت من الصفر (نسخة نظيفة) | fresh clone + `pip install -r requirements.txt` | — | — | ✅ `15 passed in 3.13s` |
+| فيديو عرض لوحة التحكم | Playwright + ffmpeg | 14 مشهدًا | — | ✅ `docs/media/dashboard_walkthrough.mp4` |
+| تحقق إعدادات النشر | nginx -t · systemd-analyze · مخفّي الأسرار | — | — | ✅ كلها ناجحة (انظر §7) |
 | OpenAPI | FastAPI | — | 40 مسارًا | ✅ موثّق في `/docs` |
 
-**الإجمالي: 67 فحصًا آليًا ناجحًا + 20 فحص E2E حقيقي.**
+**الإجمالي: 67 فحصًا آليًا ناجحًا (15 backend + 32 frontend + 20 E2E) — كلها أُعيد تشغيلها في جولة الإغلاق هذه بنفس النتائج.**
+
+> ⚠️ **ما لم يُنفَّذ:** فحوص تيليجرام الحقيقية (حساب مصرّح + قنوات فعلية). هي **غير قابلة للتنفيذ من داخل هذه البيئة** لأنها تحتاج `api_id`/`api_hash` وهاتفك وOTP/2FA وقنواتك. التفاصيل والأدلة في `docs/LIVE_TELEGRAM_EVIDENCE.md`. نجاح الاختبارات أعلاه **لا يُعد** دليلًا على الربط الحقيقي بتيليجرام.
 
 ---
 
 ## 2. نتائج Backend (`pytest -q`)
 
 ```
-15 passed, 1 warning in 3.57s
+15 passed, 1 warning in 3.29s
 ```
 > التحذير الوحيد: `StarletteDeprecationWarning` من مكتبة starlette نفسها (لا علاقة بمنطق المشروع).
 
@@ -167,3 +172,34 @@ POST /sources/1/verify    → accessible=false + سبب صريح (الحساب �
 4. **SQLite**: worker واحد + خادم واحد؛ التوسّع الأفقي يتطلب PostgreSQL + طابور موزّع (موثّق في TDD ADR‑001/002).
 5. **حدود تيليجرام**: FloodWait وحجم الوسائط تُعالَج كأخطاء قابلة للإعادة أو `FAILED` مع السبب.
 6. **Frontend tests** تستخدم fetch مُحاكى يطابق عقود الـAPI الحقيقية (`/api/v1/...`)، بينما E2E يتحقق من التكامل الحقيقي في متصفح — لا mock في مسار E2E.
+
+---
+
+## 7. جولة الإغلاق النهائي — أدلة قابلة لإعادة التشغيل (2026‑11‑06)
+
+هذه الجولة أُعيد فيها كل ما سبق **من الصفر**، وأُضيفت أدلة جديدة. المخرجات الخام محفوظة في `docs/evidence/`.
+
+| # | الأمر | النتيجة | الملف |
+|---|---|---|---|
+| 1 | `pip install -r backend/requirements.txt` في venv جديد | 47 حزمة · `pip check` نظيف | `docs/evidence/01_clean_dependency_install.txt` |
+| 2 | `bash scripts/ci/prove_clean_install.sh` | تثبيت نظيف كامل: ترحيلات + 13 جدولًا + بذرة المشرف + `15 passed in 3.47s` | `docs/evidence/02_clean_clone_install.txt` |
+| 3 | `bash scripts/ci/prove_nginx_proxy.sh` | nginx 1.26.3: SPA 200، deep link 200، assets 200، `Cache-Control` واحد، 4 رؤوس أمان، 40 مسارًا عبر proxy، تسجيل دخول وداشبورد عبر nginx | `docs/evidence/03_nginx_proxy_proof.txt` |
+| 4 | `bash scripts/ci/validate_systemd.sh` | 4 وحدات (backend/worker/backup + timer) صحيحة التحميل | `docs/evidence/04_systemd_validation.txt` |
+| 5 | `python3 scripts/ci/scan_secrets.py` | نظيف — 164 ملفًا متتبعًا، 7 أنماط | `docs/evidence/05_secret_scan.txt` |
+| 6 | `python3 scripts/live_telegram_e2e.py --dry-run` | 2 PASS (دخول + عدم تسريب الأسرار) · 6 FAIL = متطلبات تيليجرام الناقصة | `docs/evidence/06_live_telegram_prerequisites.txt` |
+| 7 | `node scripts/record_dashboard_video.mjs` | فيديو 63 ثانية + 14 مشهدًا + ترجمة SRT مدمجة | `docs/media/dashboard_walkthrough.{mp4,webm,srt}` |
+
+### إصلاحات كشفها التشغيل النظيف (وليس التخمين)
+
+| المشكلة | كيف ظهرت | الإصلاح |
+|---|---|---|
+| `PermissionError: /opt/tap/runtime` | فشل `alembic upgrade` في نسخة نظيفة | `.env.example` صار نسبيًا `./runtime/…`، و`config.py` يحلّ المسارات نسبةً لجذر المشروع |
+| Alembic ينشئ قاعدة بيانات في `backend/runtime/` | `sqlite:///./runtime/tap.db` يُحلّ نسبةً لـCWD | `resolve_database_url` + `resolved_database_path()` |
+| مولّد الأسرار لا يطابق بدائل `.env.example` | `Fernet key must be 32 bytes` | `scripts/ci/generate_env_secrets.py` |
+| `asyncio.run(init_database())` | `a coroutine was expected, got None` | الدالة متزامنة — صُحّح الاستدعاء في السكربت والوثائق |
+| `TAP_ADMIN_PASSWORD is required` بلا جرد | تشغيل dry-run بلا مخرجات مفيدة | السكربت يقرأ `.env` ويطبع جردًا لكل متطلب |
+| `NameError: prefix` / `PermissionError` في سكربت nginx | تشغيل فعلي | إصلاح f-string والكتابة عبر `sudo python3` |
+
+### ما لم يُنفَّذ في هذه الجولة
+
+البند 1→7 (تيليجرام حقيقي). غير قابل للتنفيذ من داخل بيئة الإغلاق: يحتاج `api_id/hash` من حسابك، رمز OTP على جهازك، كلمة مرور 2FA، وقنوات حقيقية. التفاصيل الكاملة والخطوات في `docs/LIVE_TELEGRAM_EVIDENCE.md`، والحكم النهائي في `docs/PRODUCTION_CLOSURE.md`.

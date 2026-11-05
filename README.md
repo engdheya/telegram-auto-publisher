@@ -106,7 +106,9 @@ Browser ──HTTPS──► Nginx ──/api──► FastAPI (40 OpenAPI paths
 | الواجهة | `frontend/src/` (`pages`, `components`, `contexts`, `services`, `types`) |
 | الوثائق والعمليات | `docs/`, `scripts/`, `deploy/` |
 
-**12 جدولًا:** `users`, `telegram_accounts`, `source_channels`, `target_channels`, `publishing_routes`, `route_filters`, `message_events`, `message_media`, `publish_jobs`, `publish_attempts`, `audit_logs`, `system_settings` — مع FKs، قيود UNIQUE، فهارس، وترحيلات Alembic.
+**12 جدولًا للتطبيق:** `users`, `telegram_accounts`, `source_channels`, `target_channels`, `publishing_routes`, `route_filters`, `message_events`, `message_media`, `publish_jobs`, `publish_attempts`, `audit_logs`, `system_settings` — مع FKs، قيود UNIQUE، فهارس، وترحيلات Alembic.
+(يظهر الرقم **13** في `/api/v1/health` لأنه يضيف جدول Alembic الداخلي `alembic_version` — لا تناقض: 12 للتطبيق + 1 للترحيلات.)
+
 
 ---
 
@@ -122,15 +124,10 @@ Python 3.11+ · Telethon · FastAPI (OpenAPI/Swagger) · SQLAlchemy 2 · Alembic
 # 1) الكود
 git clone <YOUR_REPO_URL> telegram-auto-publisher && cd telegram-auto-publisher
 
-# 2) الإعدادات
+# 2) الإعدادات (مولّد الأسرار يكتب المفاتيح في .env تلقائيًا)
 cp .env.example .env
-python3 - <<'PY'
-import secrets
-from cryptography.fernet import Fernet
-print("SESSION_ENCRYPTION_KEY=" + Fernet.generate_key().decode())
-print("JWT_SECRET_KEY=" + secrets.token_urlsafe(48))
-PY
-nano .env      # ضع المفاتيح + كلمة مرور المشرف + مسار DATABASE_URL
+python3 scripts/ci/generate_env_secrets.py .env
+# ثم عدّل ما تحتاجه فقط — الافتراضيات تعمل محليًا كما هي
 
 # 3) Backend
 cd backend && python3 -m venv .venv && source .venv/bin/activate
@@ -174,10 +171,13 @@ cd frontend && npm install && npm run dev               # http://localhost:5173
 ## الاختبارات (Tests)
 
 ```bash
-cd backend  && pytest -q          # 15 passed   (DB/WAL/قيود، أمان، Telethon، 12 سيناريو، استرداد، API)
+cd backend  && pytest -q          # 15 passed in 3.1s  (DB/WAL/قيود، أمان، Telethon، 12 سيناريو، استرداد، API)
 cd frontend && npx vitest run     # 32 passed   (6 مجموعات: مصادقة، مؤشرات، مصادر/وجهات، مسارات، رسائل/طابور، إعدادات/i18n)
 cd frontend && npm run build      # 0 TypeScript errors، build إنتاجي ناجح
 node scripts/e2e_live_walkthrough.mjs <user> <pass>   # 20/20 فحصًا في Chromium حقيقي ضد النظام الحيّ
+bash scripts/ci/prove_clean_install.sh   # إثبات التثبيت من الصفر (venv جديد + ترحيلات + الاختبارات)
+bash scripts/ci/prove_nginx_proxy.sh     # إثبات nginx: SPA + deep link + assets + API + رؤوس الأمان
+python3 scripts/ci/scan_secrets.py       # فحص أسرار قبل كل دفع
 ```
 
 التقرير الكامل بالنتائج والسيناريوهات: [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md).
@@ -196,6 +196,10 @@ node scripts/e2e_live_walkthrough.mjs <user> <pass>   # 20/20 فحصًا في Ch
 | [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | دليل استخدام كل صفحة وسيناريوهات يومية |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | systemd + Nginx + TLS + نسخ مجدول + Docker + قائمة Go‑Live |
 | [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) | نتائج الاختبارات الحقيقية ومصفوفة التغطية |
+| [`docs/PRODUCTION_CLOSURE.md`](docs/PRODUCTION_CLOSURE.md) | **الحكم النهائي**: حالة كل متطلب + ما يحتاجك + القيود المتبقية |
+| [`docs/LIVE_TELEGRAM_EVIDENCE.md`](docs/LIVE_TELEGRAM_EVIDENCE.md) | دليل تيليجرام الحقيقي: المدخلات الناقصة وخطوات التنفيذ |
+| [`docs/media/dashboard_walkthrough.mp4`](docs/media/dashboard_walkthrough.mp4) | فيديو قصير (63 ثانية) لتشغيل اللوحة وتدفق النشر |
+| [`docs/evidence/`](docs/evidence/) | نصوص حقيقية: تثبيت نظيف · nginx · systemd · فحص أسرار · جرد متطلبات تيليجرام |
 
 ---
 
@@ -206,7 +210,7 @@ node scripts/e2e_live_walkthrough.mjs <user> <pass>   # 20/20 فحصًا في Ch
 3. **المحتوى المحمي (`noforwards`)** يُسجَّل `SKIPPED` ولا يُنشر؛ لا يوجد تجاوز.
 4. **SQLite**: Worker **واحد** لكل قاعدة بيانات وخادم واحد. التوسّع الأفقي يتطلب PostgreSQL + طابور موزّع (موثّق في TDD).
 5. **حدود تيليجرام**: `FloodWait` وحجم الوسائط تُعالَج كإعادة محاولة أو `FAILED` مع سبب.
-6. **الربط الفعلي بحساب تيليجرام** يتطلب `API ID/Hash` من [my.telegram.org](https://my.telegram.org) + رمز OTP — لا يمكن للنظام توليدها. الاختبارات الآلية تستخدم `FakeTelegramGateway` الحتمي، بينما كود Telethon الحقيقي هو المستخدم في الإنتاج.
+6. **الربط الفعلي بحساب تيليجرام** يتطلب `API ID/Hash` من [my.telegram.org](https://my.telegram.org) + رمز OTP + كلمة مرور 2FA + قنوات حقيقية — لا يمكن للنظام توليدها. الاختبارات الآلية تستخدم `FakeTelegramGateway` الحتمي، بينما كود Telethon الحقيقي هو المستخدم في الإنتاج. **لذلك لا يوجد بعد دليل نشر حقيقي:** السكربت الجاهز `scripts/live_telegram_e2e.py` ينفّذ الفحوص السبعة على تيليجرام الحقيقي ويكتب الدليل في `docs/LIVE_TELEGRAM_EVIDENCE.md` — يحتاج مفاتيحك فقط.
 
 ---
 
@@ -216,7 +220,7 @@ node scripts/e2e_live_walkthrough.mjs <user> <pass>   # 20/20 فحصًا في Ch
 ./scripts/push_to_github.sh git@github.com:<user>/<repo>.git
 ```
 السكربت يرفض الدفع إن كان أي ملف حساس (`.env`, `*.session`, `*.db`, `dist/`, `node_modules/`) متتبعًا، ثم يدفع الفرع الحالي ويضبط `origin`.
-CI جاهز في `.github/workflows/ci.yml` (تثبيت + pytest + vitest + build). قوالب Issues/PRs في `.github/`.
+CI جاهز في `.github/workflows/ci.yml`: مصفوفة Python 3.11/3.12 + ترحيلات (صعود/هبوط/صعود) + `pip check`، واجهة (`npm ci`, `tsc -b`, vitest, build)، تحقق من nginx/systemd/compose، وفحوص أمنية (`scan_secrets.py`, `pip-audit`, `npm audit --audit-level=high`). قوالب Issues/PRs في `.github/`.
 
 > **لا تُرفع أبدًا**: `.env`، ملفات `.session`، قواعد بيانات حقيقية، نسخ احتياطية، أو مفاتيح.
 

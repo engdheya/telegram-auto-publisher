@@ -165,6 +165,49 @@ sudo certbot --nginx -d your-domain.com
 
 الملف يقدّم: SPA من `/opt/tap/app/frontend/dist`، `proxy_pass` لـ`/api/` و`/docs` و`/openapi.json`، رؤوس أمان، gzip، و`try_files ... /index.html` لتوجيه React Router.
 
+### 4.1 صلاحيات مجلد الواجهة (سبب أشهر خطأ `500`)
+
+`www-data` يجب أن يستطيع **عبور** كل مجلد في المسار وقراءة الملفات. البناء الذي يجري كـ`tap` ينشئ `dist` بصلاحيات لا تسمح لـnginx بالقراءة، أو يكون `dist` رابطًا رمزيًا إلى مجلد داخل `/home` (و`/home` عادةً `750`).
+
+```bash
+# الحل المُتحقَّق منه فعليًا (nginx 1.26.3، Debian/Ubuntu):
+sudo rm -rf /opt/tap/app/frontend/dist
+sudo cp -r /opt/tap/app/frontend/dist_build /opt/tap/app/frontend/dist   # أو أعد البناء في مكانه
+sudo chown -R www-data:www-data /opt/tap/app/frontend/dist
+sudo chmod -R a+rX /opt/tap/app/frontend/dist
+sudo -u www-data test -r /opt/tap/app/frontend/dist/index.html && echo "OK: www-data can read the bundle"
+
+# صلاحيات المجلدات الأعلى (بدون فتح الأسرار):
+sudo chmod 755 /opt/tap /opt/tap/app /opt/tap/app/frontend
+```
+
+فحص سريع بعد كل نشر:
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://your-domain.com/            # 200
+curl -s -o /dev/null -w '%{http_code}\n' https://your-domain.com/routes      # 200 (deep link)
+curl -s -o /dev/null -w '%{http_code}\n' https://your-domain.com/assets/<hash>.js   # 200
+```
+
+### 4.2 تحقق آلي قبل `reload`
+
+```bash
+sudo bash scripts/ci/validate_nginx.sh      # nginx -t + فحص الرؤوس والمضاعفة
+sudo bash scripts/ci/validate_systemd.sh    # systemd-analyze verify لكل الوحدات
+sudo bash scripts/ci/prove_nginx_proxy.sh   # إثبات كامل: SPA + deep link + assets + API + رؤوس أمان
+```
+الناتج الفعلي لهذه الأوامر محفوظ في `docs/evidence/03_nginx_proxy_proof.txt` و`docs/evidence/04_systemd_validation.txt`.
+
+### 4.3 `Cache-Control` للأصول الثابتة (إصلاح مؤكَّد)
+
+nginx **يستبدل** `add_header` الموروث من المستوى الأعلى إذا أضفت `add_header` داخل `location`.
+بعد إصلاح الإعداد، يجب أن يظهر **رأس واحد فقط** على `/assets/…`:
+
+```bash
+curl -sI https://your-domain.com/assets/$(ls /opt/tap/app/frontend/dist/assets | grep '\.js$' | head -1) \
+  | grep -ci '^cache-control: public, max-age=2592000, immutable'   # يجب أن يكون 1
+```
+إن ظهر `2` فالإعداد يحتوي `add_header` مكررًا (واحد في `server` وآخر في `location`).
+
 ---
 
 ## 5. النسخ الاحتياطي المجدول (إلزامي مع SQLite)
@@ -173,7 +216,12 @@ sudo certbot --nginx -d your-domain.com
 # اختبار يدوي
 cd /opt/tap/app && sudo -u tap ./scripts/backup_db.sh
 
-# يوميًا 03:30
+# التثبيت الآلي للوحدات المرفقة (موصى به — مُتحقَّق منها بـ systemd-analyze verify):
+sudo cp deploy/systemd/tap-backup.service deploy/systemd/tap-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now tap-backup.timer
+systemctl list-timers tap-backup.timer
+
+# (بديل يدوي — نفس المحتوى المرفق في deploy/systemd/)
 sudo tee /etc/systemd/system/tap-backup.service >/dev/null <<'EOF'
 [Unit]
 Description=Telegram Auto Publisher — SQLite online backup

@@ -1,0 +1,69 @@
+1
+00:00:00,000 --> 00:00:05,001
+١) تسجيل الدخول إلى لوحة التحكم — مصادقة حقيقية ضد الـAPI (JWT)
+1) Signing in to the dashboard — real API authentication (JWT)
+
+2
+00:00:05,151 --> 00:00:10,009
+٢) لوحة المؤشرات: حالة تيليجرام، العامل، سلامة قاعدة البيانات WAL، وعدّادات النشر
+2) Dashboard: Telegram state, worker heartbeat, WAL database health and publishing counters
+
+3
+00:00:10,159 --> 00:00:14,158
+٣) حساب تيليجرام: الحالة، الجلسة المشفّرة، إعادة الاتصال — دون كشف أي سر
+3) Telegram account: connection state, encrypted session, reconnect — no secrets exposed
+
+4
+00:00:14,308 --> 00:00:19,212
+٤) قنوات المصدر: إضافة قناة من الواجهة ثم فحص الوصول وبدء المراقبة (تسجيل baseline)
+4) Sources: add a channel from the UI, verify access and start monitoring (baseline recorded)
+
+5
+00:00:19,362 --> 00:00:25,252
+٥) قنوات الوجهة: إضافة وجهة ثم فحص صلاحيات النشر (can_post_messages)
+5) Targets: add a target channel and verify posting permissions (can_post_messages)
+
+6
+00:00:25,402 --> 00:00:32,536
+٦) المسارات: باني الربط المتعدد N×M ينشئ كل الأزواج في طلب واحد ذرّي
+6) Routes: the N×M bulk builder creates every source→target pair in one atomic request
+
+7
+00:00:32,686 --> 00:00:37,529
+٧) قواعد التصفية لكل مسار: أنواع المحتوى، الكلمات، طول النص، التوقيع، حذف الروابط
+7) Per-route filters: content types, keywords, text length, signature, URL stripping
+
+8
+00:00:37,679 --> 00:00:42,610
+٨) سجل المنشورات: كل حدث مع مهام النشر المستقلة لكل وجهة وحالتها وسبب الفشل
+8) Publishing history: every event with independent per-target jobs, status and failure reason
+
+9
+00:00:42,760 --> 00:00:46,877
+٩) إدارة الطابور: الحالات السبع، المحاولات، الإعادة اليدوية، ومصالحة UNKNOWN
+9) Queue: the seven states, attempt history, manual retry and UNKNOWN reconciliation
+
+10
+00:00:47,027 --> 00:00:49,499
+١٠) السجلات: عمليات المستخدم، الأخطاء، أحداث الاتصال — مع بحث وتصفية ودرج JSON
+10) Logs: user operations, errors, connection events — searchable with a raw JSON drawer
+
+11
+00:00:49,649 --> 00:00:55,202
+١١) الإعدادات: سلامة قاعدة البيانات (WAL/FK) وإنشاء نسخة احتياطية متحققة SHA-256
+11) Settings: database integrity (WAL/FK) and a verified SHA-256 online backup
+
+12
+00:00:55,352 --> 00:00:59,329
+١٢) تبديل اللغة إلى الإنجليزية (LTR) — نفس الوظائف، اتجاه معاكس
+12) Switching to English (LTR) — same functionality, mirrored direction
+
+13
+00:00:59,479 --> 00:01:03,086
+١٣) واجهة الهاتف: القائمة الجانبية المنزلقة والتصميم المتجاوب
+13) Mobile view: slide-in navigation drawer and responsive layout
+
+14
+00:01:03,236 --> 00:01:07,236
+نهاية العرض — النظام يعمل فعليًا من تيليجرام إلى تيليجرام عبر لوحة التحكم
+End of walkthrough — the system runs Telegram→Telegram end-to-end through the dashboard

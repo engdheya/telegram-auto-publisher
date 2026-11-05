@@ -1,0 +1,14 @@
+# systemd unit validation — 2026-11-05T22:05:31Z
+  ==> /home/user/telegram-auto-publisher/deploy/systemd/tap-backend.service
+      syntax OK (sections: Unit, Service, Install)
+      loaded by systemd OK
+  ==> /home/user/telegram-auto-publisher/deploy/systemd/tap-backup.service
+      syntax OK (sections: Unit, Service)
+      loaded by systemd OK
+  ==> /home/user/telegram-auto-publisher/deploy/systemd/tap-worker.service
+      syntax OK (sections: Unit, Service, Install)
+      loaded by systemd OK
+  ==> /home/user/telegram-auto-publisher/deploy/systemd/tap-backup.timer
+      syntax OK (sections: Unit, Timer, Install)
+      loaded by systemd OK
+  systemd units OK

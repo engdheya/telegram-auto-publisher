@@ -15,7 +15,7 @@
 | busy_timeout | `5000ms` |
 | synchronous | `NORMAL` (مقايضة آمنة مع WAL) |
 | Migrations | Alembic — `backend/migrations/versions/0001_initial_schema_initial_schema.py` |
-| الجداول | **13** جدولًا: 12 مطلوبة + `alembic_version` |
+| الجداول | **12 جدولًا للتطبيق** (المخطط المطلوب) + `alembic_version` = **13** إجمالًا في `sqlite_master` |
 
 ---
 
@@ -267,6 +267,10 @@ alembic revision --autogenerate -m "change"
 curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/api/v1/settings/integrity | python3 -m json.tool
 ```
 يعيد: `healthy`, `journal_mode`, `wal_enabled`, `foreign_keys_enabled`, `integrity_check`, `foreign_key_violations`, `missing_tables`, `tables_count`.
+
+> **ملاحظة توحيد الأرقام (مهمة):** الرقم **12** يشير دائمًا إلى جداول التطبيق المطلوبة في المواصفة.
+> الرقم **13** الذي يظهر في `tables_count` و`/api/v1/health` هو نفس الـ12 **زائد** جدول Alembic الداخلي `alembic_version`.
+> كلاهما صحيح ولا تناقض: عدّاد التطبيق = 12، عدّاد `sqlite_master` = 13.
 
 مُختبَر: `test_sqlite_wal_foreign_keys_and_all_12_tables` و`test_foreign_key_and_unique_constraints_enforced`.
 
