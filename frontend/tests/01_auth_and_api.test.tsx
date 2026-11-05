@@ -24,7 +24,7 @@ describe('Authentication flow (real API contract)', () => {
     renderWithProviders(<LoginPage />, { route: '/login' });
 
     await userEvent.type(screen.getByTestId('login-username'), 'admin');
-    await userEvent.type(screen.getByTestId('login-password'), 'Admin@2026!Secure');
+    await userEvent.type(screen.getByTestId('login-password'), 'Test-Password-1');
     await userEvent.click(screen.getByTestId('login-submit'));
 
     await waitFor(() => expect(getStoredToken()).toBe('jwt-token-abc'));
@@ -34,7 +34,7 @@ describe('Authentication flow (real API contract)', () => {
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({
       username: 'admin',
-      password: 'Admin@2026!Secure',
+      password: 'Test-Password-1',
     });
   });
 

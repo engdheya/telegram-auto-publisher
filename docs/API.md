@@ -10,7 +10,7 @@
 
 ### POST `/auth/login`
 ```json
-{ "username": "admin", "password": "Admin@2026!Secure" }
+{ "username": "admin", "password": "<ADMIN_PASSWORD>" }
 ```
 **200**
 ```json
@@ -248,7 +248,7 @@
 ```bash
 BASE=http://127.0.0.1:8000/api/v1
 TOKEN=$(curl -s -X POST $BASE/auth/login -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"Admin@2026!Secure"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+  -d '{"username":"admin","password":"<ADMIN_PASSWORD>"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 AUTH="Authorization: Bearer $TOKEN"
 
 curl -s -H "$AUTH" $BASE/dashboard/overview | python3 -m json.tool

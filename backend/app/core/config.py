@@ -39,7 +39,8 @@ class Settings(BaseSettings):
 
     INITIAL_ADMIN_USERNAME: str = "admin"
     INITIAL_ADMIN_EMAIL: str = "admin@tap.local"
-    INITIAL_ADMIN_PASSWORD: str = "Admin@2026!Secure"
+    # Neutral placeholder only: the bootstrap admin password MUST come from the environment.
+    INITIAL_ADMIN_PASSWORD: str = "CHANGE_ME_ADMIN_PASSWORD"
 
     DATABASE_URL: str = f"sqlite:///{PROJECT_ROOT / 'runtime' / 'tap.db'}"
     BACKUP_DIR: str = str(PROJECT_ROOT / "runtime" / "backups")
@@ -65,6 +66,16 @@ class Settings(BaseSettings):
         env = (info.data or {}).get("APP_ENV", "development")
         if env == "production" and ("CHANGE_ME" in v or len(v) < 32):
             raise ValueError("Production requires a strong JWT_SECRET_KEY (>= 32 chars).")
+        return v
+
+    @field_validator("INITIAL_ADMIN_PASSWORD")
+    @classmethod
+    def validate_admin_password(cls, v: str, info) -> str:
+        env = (info.data or {}).get("APP_ENV", "development")
+        if env == "production" and ("CHANGE_ME" in v or len(v) < 12):
+            raise ValueError(
+                "Production requires INITIAL_ADMIN_PASSWORD (>= 12 chars) supplied through the environment."
+            )
         return v
 
     @field_validator("SESSION_ENCRYPTION_KEY")
