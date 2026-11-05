@@ -1,0 +1,62 @@
+# =============================================================================
+# Telegram Auto Publisher - Security & Build Ignore Rules
+# NEVER commit secrets, Telegram sessions, or live SQLite databases.
+# =============================================================================
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Runtime State, SQLite Databases, Backups, Media Cache & Logs
+runtime/
+data/
+backups/
+media_cache/
+logs/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Telegram / Telethon Sessions (Defense-in-depth: we use encrypted StringSession in DB,
+# and also forbid any .session files from ever entering version control)
+*.session
+*.session-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Frontend / Node
+node_modules/
+frontend/dist/
+frontend/build/
+.vite/
+*.tsbuildinfo
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
