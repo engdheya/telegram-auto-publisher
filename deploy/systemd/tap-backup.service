@@ -1,0 +1,10 @@
+[Unit]
+Description=Telegram Auto Publisher — verified SQLite online backup
+
+[Service]
+Type=oneshot
+User=tap
+Group=tap
+WorkingDirectory=/opt/tap/app
+EnvironmentFile=/opt/tap/app/.env
+ExecStart=/opt/tap/app/scripts/backup_db.sh scheduled

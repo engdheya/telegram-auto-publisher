@@ -1,0 +1,75 @@
+# =============================================================================
+# Telegram Auto Publisher — optional Docker Compose deployment
+#
+#   cp .env.example .env && nano .env      # secrets + DATABASE_URL kept as /data/tap.db
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# IMPORTANT
+#  • ONE worker only: never scale `worker` (SQLite allows a single writer).
+#  • `tap-data` must be a persistent volume; bind mounts over network filesystems
+#    are unsafe for SQLite WAL.
+# =============================================================================
+name: telegram-auto-publisher
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.backend
+    image: tap-backend:1.0.0
+    container_name: tap-backend
+    env_file: ../.env
+    environment:
+      DATABASE_URL: sqlite:////data/tap.db
+      BACKUP_DIR: /data/backups
+      LOG_DIR: /data/logs
+      MEDIA_CACHE_DIR: /data/media_cache
+      BACKEND_HOST: 0.0.0.0
+    command: >
+      sh -c "alembic upgrade head &&
+             python -c 'from app.database.init_db import init_database; init_database()' &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"
+    volumes:
+      - tap-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  worker:
+    image: tap-backend:1.0.0
+    container_name: tap-worker
+    depends_on:
+      backend:
+        condition: service_healthy
+    env_file: ../.env
+    environment:
+      DATABASE_URL: sqlite:////data/tap.db
+      BACKUP_DIR: /data/backups
+      LOG_DIR: /data/logs
+      MEDIA_CACHE_DIR: /data/media_cache
+    command: ["python", "-m", "app.workers.runner"]
+    volumes:
+      - tap-data:/data
+    restart: unless-stopped
+    deploy:
+      replicas: 1        # DO NOT INCREASE
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.frontend
+    image: tap-frontend:1.0.0
+    container_name: tap-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  tap-data:
+    driver: local

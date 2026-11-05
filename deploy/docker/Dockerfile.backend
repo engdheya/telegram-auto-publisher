@@ -1,0 +1,31 @@
+# Telegram Auto Publisher — backend + worker image (multi-purpose)
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# build deps for cryptography / argon2-cffi wheels are prebuilt; keep image slim
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+COPY backend ./backend
+COPY scripts ./scripts
+
+RUN useradd --create-home --uid 10001 tap \
+    && mkdir -p /data/backups /data/logs /data/media_cache \
+    && chown -R tap:tap /app /data
+USER tap
+
+ENV DATABASE_URL=sqlite:////data/tap.db \
+    BACKUP_DIR=/data/backups \
+    LOG_DIR=/data/logs \
+    MEDIA_CACHE_DIR=/data/media_cache
+
+WORKDIR /app/backend
+EXPOSE 8000
+
+# default: API. Override the command in docker-compose to run the worker.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

@@ -1,0 +1,25 @@
+[Unit]
+Description=Telegram Auto Publisher — publishing worker (SINGLE INSTANCE ONLY)
+Documentation=file:///opt/tap/app/docs/DEPLOYMENT.md
+After=network-online.target tap-backend.service
+Wants=network-online.target
+
+[Service]
+# NEVER scale this unit (@ instances / replicas > 1): SQLite permits one writer.
+Type=simple
+User=tap
+Group=tap
+WorkingDirectory=/opt/tap/app/backend
+EnvironmentFile=/opt/tap/app/.env
+ExecStart=/opt/tap/venv/bin/python -m app.workers.runner
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/opt/tap/runtime
+
+[Install]
+WantedBy=multi-user.target
